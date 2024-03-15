@@ -1,70 +1,86 @@
 import sys
-import os
-from PyQt5 import QtCore, QtGui, QtWidgets, uic
-from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QMessageBox
+import oracledb
+from PyQt5 import QtWidgets
+from PyQt5.QtWidgets import QMessageBox 
+from ui_login import Ui_login
+from ui_cadastro import Ui_Cadastro
+from PyQt5.QtCore import pyqtSignal 
 
-from ui_home import Ui_Form
+class Login (QtWidgets.QWidget, Ui_login):
+    def __init__(self, parent=None):
+        super(Login, self).__init__(parent)
+        self.setupUi(self)
+        self.setWindowTitle("Sistema de Login")
 
-class MainWindow(QtWidgets.QWidget, Ui_Form):
-    def __init__(self):
-        super().__init__()
-        uic.loadUi('ui_home.ui', self)
-        self.setWindowTitle("Bloqueador de Sites") 
+        self.bnt_logar.clicked.connect(self.Logado)
+        self.bt_wRegistrar.clicked.connect(self.abrirRegistrar)
 
-        # Conectar os botões aos slots
-        self.bt_adicionar.clicked.connect(self.adicionaUrl)
-        self.bt_bloquear.clicked.connect(self.bloqueiaUrl)
-        self.bt_desbloquear.clicked.connect(self.desbloqueiaUrl)
-        self.bt_excluir.clicked.connect(self.excluiUrl)
+        self.lineEdit_2.returnPressed.connect(self.bnt_logar.click)
+        self.lineEdit.returnPressed.connect(self.bnt_logar.click)
 
-        self.treeWidget.itemSelectionChanged.connect(self.selecionaUrl)
+    def Logado(self):
+        QMessageBox.warning(self, 'Aviso', 'Você foi Logado com sucesso!')
 
-    def adicionaUrl(self):
-        # Obter a URL do QLineEdit
-        url = self.input_site.text()
+    def abrirRegistrar(self):
+        self.w = Cadastro()
+        self.w.show()
+        self.close()
 
 
-        if url:
-            item = QtWidgets.QTreeWidgetItem([url])
-            item.setText(0, url)
-            self.treeWidget.addTopLevelItem(item)
-            self.input_site.clear()
+class Cadastro (QtWidgets.QWidget, Ui_Cadastro):
+    def __init__(self, parent=None):
+        super(Cadastro, self).__init__(parent)
+        self.setupUi(self)
+        self.setWindowTitle("Sistema de Cadastro")
 
+        self.bnt_Cadastrar.clicked.connect(self.cadastrar)
+        self.bt_pgLogar.clicked.connect(self.abrirLogin)
+
+        self.input_confirmaSenha.returnPressed.connect(self.bnt_Cadastrar.click)
+        self.input_senha.returnPressed.connect(self.bnt_Cadastrar.click)
+        self.input_Email.returnPressed.connect(self.bnt_Cadastrar.click)
+        self.input_user.returnPressed.connect(self.bnt_Cadastrar.click)
+
+
+    def cadastrar(self):
+        username = self.input_user.text()
+        email = self.input_Email.text()
+        senha = self.input_senha.text()
+        confirma_senha = self.input_confirmaSenha.text()
+
+        # Verifique se as senhas correspondem
+        if senha != confirma_senha:
+            QMessageBox.warning(self, 'Aviso', 'As senhas não correspondem!')
+            return
         else:
-            QtWidgets.QMessageBox.warning(self, "Aviso", "Por favor, insira uma URL válida")
+            conn = None
+            cursor = None
+            # Insira os dados na tabela "cadastros" no banco de dados Oracle
+            try:
+                conn = oracledb.connect('system/oracle@localhost:1521/Cadastros')
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO cadastros (username, email, senha) VALUES (:1, :2, :3)", (username, email, senha))
+                conn.commit()
+                QMessageBox.warning(self, 'Aviso', 'Cadastro realizado com sucesso!')
+            except oracledb.Error as error:
+                QMessageBox.warning(self, 'Erro', f'Ocorreu um erro ao cadastrar: {error}')
+            finally:
+                if cursor:
+                    cursor.close()
+                if conn:
+                    conn.close()
+            self.w = Login()
+            self.w.show()
+            self.close()
 
-    
-    def selecionaUrl(self):
-        selected_item = self.treeWidget.currentItem()
-
-        if selected_item:
-            self.input_site.setText(selected_item.text(0))
-
-
-
-    def bloqueiaUrl(self):
-        selected_item = self.treeWidget.currentItem()
-
-        if selected_item:
-            with open(r'C:\\Windows\\System32\\drivers\\etc\\hosts', 'a') as file:
-                file.write(f'\n127.0.0.1 {url}')
-
-            bloquearUrl('exemplo.com')
-
-    def desbloqueiaUrl(self):
-        pass
-
-    def excluiUrl(self):
-        selected_item = self.treeWidget.currentItem()
-
-        if selected_item:
-            
-            index = self.treeWidget.indexOfTopLevelItem(selected_item)
-
-            self.treeWidget.takeTopLevelItem(index)
+    def abrirLogin(self):
+        self.w = Login()
+        self.w.show()
+        self.close()
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
+    app = QtWidgets.QApplication(sys.argv)
+    login = Login()
+    edit = Cadastro()
+    login.show()
     sys.exit(app.exec_())
